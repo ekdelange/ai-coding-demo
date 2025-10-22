@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>3D LEGO Block Demo</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: radial-gradient(circle at top, #1f2a44, #0a0d1a 70%);
+        min-height: 100vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: #f2f4ff;
+      }
+
+      header {
+        position: absolute;
+        top: 20px;
+        text-align: center;
+        padding: 0 20px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(1.5rem, 2.5vw, 2.5rem);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      p {
+        margin-top: 0.25rem;
+        font-size: clamp(0.95rem, 1.8vw, 1.15rem);
+        opacity: 0.75;
+      }
+
+      canvas {
+        width: min(90vw, 640px);
+        height: min(70vh, 480px);
+        border-radius: 16px;
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>3D LEGO® Block Demo</h1>
+      <p>Click and drag to orbit the block • Scroll to zoom</p>
+    </header>
+
+    <script type="module">
+      import * as THREE from "https://unpkg.com/three@0.164.1/build/three.module.js";
+      import { OrbitControls } from "https://unpkg.com/three@0.164.1/examples/jsm/controls/OrbitControls.js";
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0a0d1a);
+
+      const camera = new THREE.PerspectiveCamera(
+        45,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        100
+      );
+      camera.position.set(8, 6, 10);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      document.body.appendChild(renderer.domElement);
+
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.08;
+      controls.minDistance = 6;
+      controls.maxDistance = 18;
+      controls.maxPolarAngle = Math.PI / 2.1;
+
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+      scene.add(ambientLight);
+
+      const keyLight = new THREE.DirectionalLight(0xffffff, 1.1);
+      keyLight.position.set(6, 12, 8);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.width = 2048;
+      keyLight.shadow.mapSize.height = 2048;
+      scene.add(keyLight);
+
+      const rimLight = new THREE.DirectionalLight(0x6ec1ff, 0.6);
+      rimLight.position.set(-10, 6, -6);
+      scene.add(rimLight);
+
+      const blockGroup = new THREE.Group();
+
+      const blockGeometry = new THREE.BoxGeometry(6, 2.4, 4);
+      const blockMaterial = new THREE.MeshStandardMaterial({
+        color: 0xe52521,
+        metalness: 0.1,
+        roughness: 0.35,
+      });
+      const blockMesh = new THREE.Mesh(blockGeometry, blockMaterial);
+      blockMesh.castShadow = true;
+      blockMesh.receiveShadow = true;
+      blockGroup.add(blockMesh);
+
+      const studGeometry = new THREE.CylinderGeometry(0.55, 0.58, 0.6, 48);
+      const studMaterial = new THREE.MeshStandardMaterial({
+        color: 0xff4b39,
+        metalness: 0.05,
+        roughness: 0.3,
+      });
+
+      const studPositions = [
+        [-1.6, 1.2],
+        [1.6, 1.2],
+        [-1.6, -1.2],
+        [1.6, -1.2],
+      ];
+
+      studPositions.forEach(([x, z]) => {
+        const stud = new THREE.Mesh(studGeometry, studMaterial);
+        stud.position.set(x, 1.5, z);
+        stud.castShadow = true;
+        stud.receiveShadow = true;
+        blockGroup.add(stud);
+      });
+
+      blockGroup.rotation.x = THREE.MathUtils.degToRad(-18);
+      blockGroup.rotation.y = THREE.MathUtils.degToRad(24);
+      scene.add(blockGroup);
+
+      const platformGeometry = new THREE.CylinderGeometry(8, 8, 0.4, 64);
+      const platformMaterial = new THREE.MeshStandardMaterial({
+        color: 0x1b243b,
+        roughness: 0.8,
+        metalness: 0.05,
+      });
+      const platform = new THREE.Mesh(platformGeometry, platformMaterial);
+      platform.position.y = -1.4;
+      platform.receiveShadow = true;
+      scene.add(platform);
+
+      const glowGeometry = new THREE.RingGeometry(3.5, 6.5, 64);
+      const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x4287ff,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.2,
+      });
+      const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+      glow.rotation.x = Math.PI / 2;
+      glow.position.y = -1.18;
+      scene.add(glow);
+
+      const clock = new THREE.Clock();
+
+      function animate() {
+        requestAnimationFrame(animate);
+
+        const elapsed = clock.getElapsedTime();
+        blockGroup.rotation.y += 0.0025;
+        blockGroup.position.y = Math.sin(elapsed) * 0.12;
+        glow.material.opacity = 0.18 + Math.sin(elapsed * 1.6) * 0.04;
+
+        controls.update();
+        renderer.render(scene, camera);
+      }
+
+      animate();
+
+      window.addEventListener("resize", () => {
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+        renderer.setSize(width, height);
+      });
+    </script>
+  </body>
+</html>
