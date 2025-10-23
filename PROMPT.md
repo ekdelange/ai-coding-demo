@@ -1,5 +1,7 @@
-You are a senior Python engineer. Build a Plotly Dash web app that reads
-'JE_Tariff_Shock_Demo_v2.xlsx' from the working directory and renders a dynamic
+You are a senior Python engineer. Build a a dynamic, interactive dashboard 
+using Plotly only — the result should be a self-contained HTML file I can open 
+in my browser, with filters, zooming, and hover features. The app should read
+'JE_Tariff_Shock_Demo_v2.xlsx' from the working directory and render a dynamic
 tariff impact dashboard for actuator SKUs (AX100, AX200) sold into the US market.
 
 Data model:
@@ -40,11 +42,9 @@ UI requirements:
 - Keep code modular: functions for load_data(), compute_costs(), compute_tariffs(), build_map().
 
 Non-functional:
-- Pin dependencies in requirements.txt: dash, pandas, plotly, openpyxl.
 - Provide docstrings and type hints.
 - Use clear variable names; keep all units in USD and kg; scenario/subtotals must be visible.
 
 Deliverables:
-- app.py (Dash app)
-- requirements.txt
-- A short README.md with 'How to run' steps: `pip install -r requirements.txt` and `python app.py`.
+- app.html (Dash app in single self-contained HTML file)
+- A short README.md with instructions.
