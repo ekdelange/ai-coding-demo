@@ -11,7 +11,7 @@ Libraries (via CDN, latest stable):
 - SheetJS xlsx (to parse .xlsx in browser)
 
 Data input:
-- Primary: user uploads JE_Tariff_Shock_Demo_CHF.xlsx (from working dir) using a file input.
+- Primary: user uploads JE_Tariff_Shock_Demo_v2.xlsx (from working dir) using a file input.
 - Fallback: allow uploading a zipped set of CSVs OR pasting JSON rows.
 - Read these sheets from the workbook: Products, BOM, Components, Sites, AssemblyOptions,
   LogisticsLanes, TariffScenarios, Tariffs_US, TariffInputs, MapNodes, FX (for display only).
@@ -40,7 +40,7 @@ UI/UX (JE-style, responsive, 3-pane layout):
   • Radio: ScenarioDate (from TariffScenarios)
   • Radio: Final Assembly Site (BU_CH_MUR, PLANT_US_MI, PLANT_MX_NL)
   • Checkbox: “Include fixed logistics fees”
-  • Editable tariff table section bound to TariffInputs.UserRate_pct (Tabulator with inline editing).
+  • List of tariffs, each with a slider to adjust the value bound to TariffInputs.UserRate_pct 
     Keep edits in memory; “Reset Overrides” clears only UserRate_pct.
 - Main area:
   • Top filter bar: SKU selector; counters for rows.
