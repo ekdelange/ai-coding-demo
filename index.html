@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Actuator Tariff Impact Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@6.2.1/dist/css/tabulator.min.css" />
+  <style>
+    :root {
+      --brand:#e9a16f;
+      --sidebar:#f5c6a5;
+      --panel:#fff7f1;
+      --text:#333;
+      --muted:#666;
+      --bg:#fdf9f5;
+      font-family: "Segoe UI", Roboto, sans-serif;
+    }
+    body {
+      margin:0;
+      color:var(--text);
+      background:var(--bg);
+    }
+    header {
+      background:var(--brand);
+      color:#fff;
+      padding:0.8rem 1.2rem;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      box-shadow:0 2px 6px rgba(0,0,0,0.1);
+    }
+    header h1 {
+      margin:0;
+      font-size:1.3rem;
+      letter-spacing:0.04em;
+    }
+    .toolbar {
+      display:flex;
+      gap:0.5rem;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .toolbar label,
+    .toolbar button {
+      background:rgba(255,255,255,0.15);
+      border:1px solid rgba(255,255,255,0.4);
+      border-radius:4px;
+      padding:0.4rem 0.7rem;
+      color:#fff;
+      cursor:pointer;
+      font-size:0.85rem;
+    }
+    .toolbar input[type="file"] {
+      display:none;
+    }
+    .toolbar button {
+      background:rgba(0,0,0,0.15);
+    }
+    .layout {
+      display:grid;
+      grid-template-columns:280px 1fr 280px;
+      gap:1rem;
+      padding:1rem;
+    }
+    @media (max-width:1200px) {
+      .layout {
+        grid-template-columns:260px 1fr;
+      }
+      .insights-panel {
+        grid-column:1 / -1;
+        order:3;
+      }
+    }
+    @media (max-width:900px) {
+      .layout {
+        grid-template-columns:1fr;
+      }
+      .sidebar {
+        order:2;
+      }
+      .main {
+        order:1;
+      }
+    }
+    .sidebar {
+      background:var(--sidebar);
+      padding:1rem;
+      border-radius:12px;
+      box-shadow:0 6px 12px rgba(0,0,0,0.08);
+      display:flex;
+      flex-direction:column;
+      gap:1rem;
+    }
+    .sidebar h2 {
+      margin:0;
+      font-size:1rem;
+      text-transform:uppercase;
+      letter-spacing:0.05em;
+    }
+    .sidebar section {
+      background:rgba(255,255,255,0.7);
+      border-radius:10px;
+      padding:0.8rem;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.6);
+    }
+    .sidebar label,
+    .sidebar span {
+      font-size:0.9rem;
+      display:block;
+      margin-bottom:0.4rem;
+    }
+    .sidebar input[type="radio"],
+    .sidebar input[type="checkbox"] {
+      margin-right:0.4rem;
+    }
+    .tariff-slider {
+      margin-bottom:0.8rem;
+    }
+    .tariff-slider input[type="range"] {
+      width:100%;
+    }
+    .main {
+      display:flex;
+      flex-direction:column;
+      gap:1rem;
+    }
+    .card {
+      background:var(--panel);
+      border-radius:12px;
+      padding:1rem;
+      box-shadow:0 8px 14px rgba(0,0,0,0.08);
+    }
+    .kpi-grid {
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+      gap:0.8rem;
+    }
+    .kpi {
+      background:#fff;
+      border-radius:10px;
+      padding:0.8rem;
+      border:1px solid rgba(0,0,0,0.05);
+    }
+    .kpi .label {
+      color:var(--muted);
+      font-size:0.8rem;
+      text-transform:uppercase;
+      letter-spacing:0.05em;
+    }
+    .kpi .value {
+      font-size:1.4rem;
+      font-weight:600;
+      margin-top:0.2rem;
+    }
+    .filter-bar {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      flex-wrap:wrap;
+      gap:0.5rem;
+      margin-bottom:0.5rem;
+    }
+    .filter-bar select {
+      padding:0.4rem 0.6rem;
+      border-radius:6px;
+      border:1px solid rgba(0,0,0,0.1);
+    }
+    .tab-container {
+      background:var(--panel);
+      border-radius:12px;
+      box-shadow:0 8px 14px rgba(0,0,0,0.08);
+    }
+    .tabs {
+      display:flex;
+      gap:0.2rem;
+      border-bottom:1px solid rgba(0,0,0,0.1);
+      padding:0.6rem;
+    }
+    .tabs button {
+      border:none;
+      background:transparent;
+      padding:0.4rem 0.8rem;
+      font-weight:600;
+      border-radius:8px;
+      cursor:pointer;
+      color:var(--muted);
+    }
+    .tabs button.active {
+      background:var(--brand);
+      color:#fff;
+    }
+    .tab-content {
+      display:none;
+      padding:1rem;
+      min-height:320px;
+    }
+    .tab-content.active {
+      display:block;
+    }
+    .insights-panel {
+      background:var(--panel);
+      border-radius:12px;
+      padding:1rem;
+      box-shadow:0 8px 14px rgba(0,0,0,0.08);
+      display:flex;
+      flex-direction:column;
+      gap:1rem;
+      position:sticky;
+      top:1rem;
+      max-height:calc(100vh - 2rem);
+    }
+    .insights-panel h2 {
+      margin:0;
+      font-size:1.05rem;
+    }
+    .insights-panel p {
+      margin:0;
+      color:var(--muted);
+      line-height:1.4;
+    }
+    .legend {
+      display:flex;
+      gap:0.8rem;
+      flex-wrap:wrap;
+      font-size:0.8rem;
+    }
+    .legend span {
+      display:flex;
+      align-items:center;
+      gap:0.3rem;
+    }
+    .legend .dot {
+      width:12px;
+      height:12px;
+      border-radius:50%;
+      display:inline-block;
+    }
+    .warning {
+      background:#fff0f0;
+      border-left:4px solid #e57373;
+      padding:0.6rem;
+      border-radius:8px;
+      color:#b71c1c;
+      margin-bottom:0.6rem;
+      font-size:0.85rem;
+    }
+    .modal {
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.5);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      z-index:1000;
+      visibility:hidden;
+      opacity:0;
+      transition:opacity 0.2s;
+    }
+    .modal.open {
+      visibility:visible;
+      opacity:1;
+    }
+    .modal-content {
+      background:#fff;
+      border-radius:12px;
+      padding:1rem;
+      width:min(600px, 90vw);
+      max-height:80vh;
+      display:flex;
+      flex-direction:column;
+      gap:0.8rem;
+    }
+    .modal textarea {
+      flex:1;
+      width:100%;
+      min-height:240px;
+      border-radius:8px;
+      border:1px solid rgba(0,0,0,0.15);
+      padding:0.6rem;
+      font-family:monospace;
+    }
+    .btn {
+      border:none;
+      padding:0.5rem 0.8rem;
+      border-radius:8px;
+      background:var(--brand);
+      color:#fff;
+      cursor:pointer;
+      font-weight:600;
+    }
+    .btn.secondary {
+      background:#ddd;
+      color:var(--text);
+    }
+    .status-bar {
+      font-size:0.85rem;
+      color:var(--muted);
+      display:flex;
+      gap:0.8rem;
+      flex-wrap:wrap;
+    }
+    .tabulator .tabulator-header .tabulator-col {
+      background:rgba(233,161,111,0.15);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Actuator Tariff Impact Dashboard</h1>
+    <div class="toolbar">
+      <label for="file-input">Upload Workbook</label>
+      <input id="file-input" type="file" accept=".xlsx,.csv,.zip" />
+      <button id="paste-json-btn" type="button">Paste JSON</button>
+      <button id="reset-overrides" type="button">Reset Overrides</button>
+      <button id="download-table" type="button">Download CSV/XLSX</button>
+    </div>
+  </header>
+  <div class="layout">
+    <aside class="sidebar">
+      <section>
+        <h2>Scenario</h2>
+        <div id="scenario-options"></div>
+      </section>
+      <section>
+        <h2>Assembly site</h2>
+        <div id="assembly-options"></div>
+      </section>
+      <section>
+        <label><input type="checkbox" id="include-fixed" /> Include fixed logistics fees</label>
+      </section>
+      <section>
+        <h2>Tariff overrides</h2>
+        <div id="tariff-sliders"></div>
+      </section>
+    </aside>
+    <main class="main">
+      <div id="warnings"></div>
+      <div class="card">
+        <div class="filter-bar">
+          <div>
+            <label for="sku-select">SKU</label>
+            <select id="sku-select"></select>
+          </div>
+          <div class="status-bar">
+            <span id="row-count">0 SKUs</span>
+            <span id="scenario-label"></span>
+          </div>
+        </div>
+        <div class="kpi-grid" id="kpi-grid"></div>
+      </div>
+      <div class="card">
+        <h3>Cost structure by assembly site</h3>
+        <div class="legend" id="site-legend"></div>
+        <div id="cost-chart" style="height:320px;"></div>
+      </div>
+      <div class="card">
+        <h3>SKU landed cost breakdown</h3>
+        <div id="sku-table"></div>
+      </div>
+      <div class="tab-container">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="map-tab">Map</button>
+          <button class="tab-btn" data-tab="whatif-tab">What-if</button>
+        </div>
+        <div id="map-tab" class="tab-content active">
+          <div id="map-chart" style="height:420px;"></div>
+        </div>
+        <div id="whatif-tab" class="tab-content">
+          <div class="card" style="background:transparent; box-shadow:none;">
+            <h3>Motor routing toggle</h3>
+            <div id="motor-routing-controls" style="display:flex; gap:1rem; flex-wrap:wrap;">
+              <label><input type="radio" name="motor-route" value="auto" checked /> Auto (per assembly site)</label>
+              <label><input type="radio" name="motor-route" value="Switzerland" /> China → Switzerland</label>
+              <label><input type="radio" name="motor-route" value="United States" /> China → United States</label>
+              <label><input type="radio" name="motor-route" value="Mexico" /> China → Mexico</label>
+            </div>
+          </div>
+          <div id="whatif-chart" style="height:420px;"></div>
+        </div>
+      </div>
+    </main>
+    <aside class="insights-panel">
+      <h2>Insights</h2>
+      <p id="insights-text">Upload the workbook to begin analyzing landed costs and tariff impacts.</p>
+      <div>
+        <h3>FX reference</h3>
+        <ul id="fx-list" style="margin:0; padding-left:1rem; font-size:0.9rem; color:var(--muted);"></ul>
+      </div>
+    </aside>
+  </div>
+
+  <div class="modal" id="json-modal">
+    <div class="modal-content">
+      <h3>Paste JSON rows</h3>
+      <p style="font-size:0.85rem; color:var(--muted);">Provide an object with sheet names as keys, each mapping to an array of row objects.</p>
+      <textarea id="json-textarea" placeholder='{"Products":[{"SKU":"ACT"}],"BOM":[...]}'></textarea>
+      <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
+        <button class="btn secondary" id="cancel-json">Cancel</button>
+        <button class="btn" id="apply-json">Apply JSON</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://unpkg.com/tabulator-tables@6.2.1/dist/js/tabulator.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script>
+    const state = {
+      rawSheets: {},
+      warnings: [],
+      scenarioDate: null,
+      assemblySite: null,
+      includeFixed: false,
+      tariffOverrides: {},
+      motorRouting: 'auto',
+      computed: [],
+      legendColors: {
+        'BU_CH_MUR': '#8d5524',
+        'PLANT_US_MI': '#2a9d8f',
+        'PLANT_MX_NL': '#e76f51'
+      }
+    };
+
+    const requiredSheets = ['Products','BOM','Components','Sites','AssemblyOptions','LogisticsLanes','TariffScenarios','Tariffs_US','TariffInputs','MapNodes','FX'];
+
+    const fileInput = document.getElementById('file-input');
+    const warningsEl = document.getElementById('warnings');
+    const scenarioOptionsEl = document.getElementById('scenario-options');
+    const assemblyOptionsEl = document.getElementById('assembly-options');
+    const tariffSlidersEl = document.getElementById('tariff-sliders');
+    const skuSelectEl = document.getElementById('sku-select');
+    const includeFixedEl = document.getElementById('include-fixed');
+    const scenarioLabelEl = document.getElementById('scenario-label');
+    const rowCountEl = document.getElementById('row-count');
+    const kpiGridEl = document.getElementById('kpi-grid');
+    const siteLegendEl = document.getElementById('site-legend');
+    const insightsEl = document.getElementById('insights-text');
+    const fxListEl = document.getElementById('fx-list');
+    const jsonModal = document.getElementById('json-modal');
+    const jsonTextarea = document.getElementById('json-textarea');
+
+    document.getElementById('paste-json-btn').addEventListener('click', () => {
+      jsonTextarea.value = '';
+      jsonModal.classList.add('open');
+    });
+    document.getElementById('cancel-json').addEventListener('click', () => jsonModal.classList.remove('open'));
+    document.getElementById('apply-json').addEventListener('click', () => {
+      try {
+        const parsed = JSON.parse(jsonTextarea.value);
+        loadDataFromObject(parsed);
+        jsonModal.classList.remove('open');
+      } catch (err) {
+        alert('Invalid JSON: ' + err.message);
+      }
+    });
+
+    document.getElementById('reset-overrides').addEventListener('click', () => {
+      state.tariffOverrides = {};
+      Object.values(state.rawSheets.TariffInputs || []).forEach(row => {
+        if (row && 'UserRate_pct' in row) {
+          row.UserRate_pct = '';
+        }
+      });
+      renderTariffSliders();
+      recompute();
+    });
+
+    document.getElementById('download-table').addEventListener('click', () => {
+      if (!state.tableInstance) {
+        alert('Table not ready.');
+        return;
+      }
+      state.tableInstance.download('xlsx', 'sku_costs.xlsx', {sheetName:'Costs'});
+    });
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+        document.getElementById(btn.dataset.tab).classList.add('active');
+        if (btn.dataset.tab === 'map-tab') {
+          renderMap();
+        } else if (btn.dataset.tab === 'whatif-tab') {
+          renderWhatIf();
+        }
+      });
+    });
+
+    document.querySelectorAll('input[name="motor-route"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        state.motorRouting = e.target.value;
+        recompute();
+      });
+    });
+
+    fileInput.addEventListener('change', async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      const name = file.name.toLowerCase();
+      try {
+        if (name.endsWith('.xlsx')) {
+          await loadWorkbook(file);
+        } else if (name.endsWith('.zip')) {
+          await loadZipOfCSVs(file);
+        } else if (name.endsWith('.csv')) {
+          await loadSingleCSV(file);
+        } else {
+          alert('Unsupported file type.');
+        }
+      } catch (err) {
+        alert('Failed to load file: ' + err.message);
+      } finally {
+        fileInput.value = '';
+      }
+    });
+
+    includeFixedEl.addEventListener('change', () => {
+      state.includeFixed = includeFixedEl.checked;
+      recompute();
+    });
+
+    skuSelectEl.addEventListener('change', () => {
+      recompute();
+    });
+
+    async function loadWorkbook(file) {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, {type:'array'});
+      const sheetsObj = {};
+      workbook.SheetNames.forEach(name => {
+        const sheet = workbook.Sheets[name];
+        if (!sheet) return;
+        sheetsObj[name] = XLSX.utils.sheet_to_json(sheet, {defval:''});
+      });
+      loadDataFromObject(sheetsObj);
+    }
+
+    async function loadZipOfCSVs(file) {
+      const zip = await JSZip.loadAsync(await file.arrayBuffer());
+      const sheetsObj = {};
+      const entries = Object.values(zip.files).filter(f => !f.dir && f.name.toLowerCase().endsWith('.csv'));
+      for (const entry of entries) {
+        const csvText = await entry.async('string');
+        const parsed = Papa.parse(csvText, {header:true, dynamicTyping:false, skipEmptyLines:true});
+        const base = entry.name.split('/').pop().replace(/\.csv$/i,'');
+        sheetsObj[base] = parsed.data;
+      }
+      loadDataFromObject(sheetsObj);
+    }
+
+    async function loadSingleCSV(file) {
+      const text = await file.text();
+      const parsed = Papa.parse(text, {header:true, dynamicTyping:false, skipEmptyLines:true});
+      loadDataFromObject({Products: parsed.data});
+    }
+
+    function loadDataFromObject(sheetsObj) {
+      state.rawSheets = {};
+      state.warnings = [];
+      for (const key in sheetsObj) {
+        state.rawSheets[key] = (sheetsObj[key] || []).map(row => Object.assign({}, row));
+      }
+      const missing = requiredSheets.filter(name => !state.rawSheets[name]);
+      if (missing.length) {
+        state.warnings.push('Missing sheets: ' + missing.join(', '));
+      }
+      initializeState();
+    }
+
+    function initializeState() {
+      const scenarios = state.rawSheets.TariffScenarios || [];
+      if (scenarios.length) {
+        state.scenarioDate = scenarios[0].ScenarioDate;
+      }
+      const assemblyOptions = state.rawSheets.AssemblyOptions || [];
+      const uniqueSites = [...new Set(assemblyOptions.map(row => row.AssemblySiteID))];
+      state.assemblySite = uniqueSites.includes('BU_CH_MUR') ? 'BU_CH_MUR' : (uniqueSites[0] || null);
+      renderScenarioOptions();
+      renderAssemblyOptions(uniqueSites);
+      renderTariffSliders();
+      populateSKUSelect();
+      renderFxList();
+      recompute();
+    }
+
+    function populateSKUSelect() {
+      const products = state.rawSheets.Products || [];
+      skuSelectEl.innerHTML = '';
+      products.forEach(row => {
+        const option = document.createElement('option');
+        option.value = row.SKU;
+        option.textContent = row.SKU + ' – ' + (row.Description || '');
+        skuSelectEl.appendChild(option);
+      });
+      if (products.length) {
+        skuSelectEl.value = products[0].SKU;
+      }
+    }
+
+    function renderScenarioOptions() {
+      scenarioOptionsEl.innerHTML = '';
+      const scenarios = state.rawSheets.TariffScenarios || [];
+      scenarios.forEach((row, idx) => {
+        const id = 'scen-' + idx;
+        const label = document.createElement('label');
+        label.innerHTML = `<input type="radio" name="scenario" value="${row.ScenarioDate}" ${row.ScenarioDate===state.scenarioDate?'checked':''}/> ${row.ScenarioDate}`;
+        label.title = row.Description || '';
+        scenarioOptionsEl.appendChild(label);
+      });
+      scenarioOptionsEl.querySelectorAll('input[name="scenario"]').forEach(input => {
+        input.addEventListener('change', (e) => {
+          state.scenarioDate = e.target.value;
+          recompute();
+        });
+      });
+    }
+
+    function renderAssemblyOptions(siteIds) {
+      assemblyOptionsEl.innerHTML = '';
+      siteIds.forEach((site, idx) => {
+        const label = document.createElement('label');
+        label.innerHTML = `<input type="radio" name="assembly" value="${site}" ${state.assemblySite===site?'checked':''}/> ${site}`;
+        assemblyOptionsEl.appendChild(label);
+      });
+      assemblyOptionsEl.querySelectorAll('input[name="assembly"]').forEach(input => {
+        input.addEventListener('change', (e) => {
+          state.assemblySite = e.target.value;
+          recompute();
+        });
+      });
+    }
+
+    function renderTariffSliders() {
+      tariffSlidersEl.innerHTML = '';
+      const inputs = state.rawSheets.TariffInputs || [];
+      if (!inputs.length) {
+        tariffSlidersEl.innerHTML = '<p class="warning">TariffInputs sheet missing or empty.</p>';
+        return;
+      }
+      inputs.forEach((row, idx) => {
+        const key = `${row.ComponentClass}|${row.OriginCountry}`;
+        const defaultVal = parseFloat(row.DefaultRate_pct || 0);
+        const current = state.tariffOverrides[key] ?? (row.UserRate_pct !== '' ? parseFloat(row.UserRate_pct) : defaultVal);
+        const wrapper = document.createElement('div');
+        wrapper.className = 'tariff-slider';
+        wrapper.innerHTML = `
+          <span><strong>${row.ComponentClass}</strong> (${row.OriginCountry}) – <span id="tariff-display-${idx}">${current.toFixed(1)}%</span></span>
+          <input type="range" min="0" max="100" step="0.5" value="${current}" data-key="${key}" data-display="tariff-display-${idx}">
+        `;
+        tariffSlidersEl.appendChild(wrapper);
+      });
+      tariffSlidersEl.querySelectorAll('input[type="range"]').forEach(slider => {
+        slider.addEventListener('input', (e) => {
+          const val = parseFloat(e.target.value);
+          const display = document.getElementById(e.target.dataset.display);
+          if (display) display.textContent = val.toFixed(1) + '%';
+        });
+        slider.addEventListener('change', (e) => {
+          const key = e.target.dataset.key;
+          const val = parseFloat(e.target.value);
+          state.tariffOverrides[key] = val;
+          recompute();
+        });
+      });
+    }
+
+    function renderFxList() {
+      fxListEl.innerHTML = '';
+      const fxRows = state.rawSheets.FX || [];
+      fxRows.forEach(row => {
+        const li = document.createElement('li');
+        li.textContent = `${row.Currency}: ${row.USD_per_unit}`;
+        fxListEl.appendChild(li);
+      });
+    }
+
+    function updateWarnings() {
+      warningsEl.innerHTML = '';
+      state.warnings.forEach(msg => {
+        const div = document.createElement('div');
+        div.className = 'warning';
+        div.textContent = msg;
+        warningsEl.appendChild(div);
+      });
+    }
+
+    function formatCHF(value) {
+      if (!isFinite(value)) return 'CHF –';
+      return 'CHF ' + value.toLocaleString('de-CH', {minimumFractionDigits:2, maximumFractionDigits:2});
+    }
+
+    function getTariffRate(componentClass, originCountry) {
+      const key = `${componentClass}|${originCountry}`;
+      if (state.tariffOverrides[key] != null) return state.tariffOverrides[key];
+      const inputs = state.rawSheets.TariffInputs || [];
+      const inputRow = inputs.find(row => row.ComponentClass === componentClass && row.OriginCountry === originCountry);
+      if (inputRow && inputRow.UserRate_pct !== '') {
+        return parseFloat(inputRow.UserRate_pct || 0);
+      }
+      const tariffs = state.rawSheets.Tariffs_US || [];
+      const tariffRow = tariffs.find(row => row.ScenarioDate === state.scenarioDate && row.ComponentClass === componentClass && row.OriginCountry === originCountry);
+      if (tariffRow) return parseFloat(tariffRow.US_AdValoremTariff_pct || 0);
+      return inputRow ? parseFloat(inputRow.DefaultRate_pct || 0) : 0;
+    }
+
+    function computeTariffs(componentValue, componentClass, originCountry) {
+      const rate = getTariffRate(componentClass, originCountry);
+      return { rate, amount: componentValue * rate / 100 };
+    }
+
+    function findLane(fromCountry, toCountry) {
+      const lanes = state.rawSheets.LogisticsLanes || [];
+      return lanes.find(row => row.FromCountry === fromCountry && row.ToCountry === toCountry);
+    }
+
+    function computeLogisticsComponent(component, destCountry) {
+      const originSite = (state.rawSheets.Sites || []).find(row => row.SiteID === component.OriginSiteID);
+      const originCountry = originSite ? originSite.Country : 'Unknown';
+      let targetCountry = destCountry;
+      if (component.Class === 'Motor' && state.motorRouting !== 'auto') {
+        targetCountry = state.motorRouting;
+      }
+      const lane = findLane(originCountry, targetCountry);
+      const unitWeight = parseFloat(component.UnitWeight_kg || 0);
+      let cost = 0;
+      let lead = 0;
+      if (lane) {
+        cost += unitWeight * parseFloat(lane.Cost_per_kg_USD || 0);
+        if (state.includeFixed) {
+          cost += parseFloat(lane.Fixed_per_shipment_USD || 0) / 10000;
+        }
+        lead += parseFloat(lane.LeadTime_days || 0);
+      }
+      return {cost, lead, lane, originCountry, targetCountry, originSiteID: component.OriginSiteID};
+    }
+
+    function computeFinishedLogistics(product, assemblySite) {
+      const assemblyInfo = (state.rawSheets.Sites || []).find(row => row.SiteID === assemblySite);
+      if (!assemblyInfo) return {cost:0, lead:0, lane:null};
+      if (assemblyInfo.Country === 'United States') {
+        return {cost:0, lead:0, lane:null, destination:'United States'};
+      }
+      const lane = findLane(assemblyInfo.Country, 'United States');
+      const weight = parseFloat(product.UnitWeight_kg || 0);
+      let cost = 0;
+      let lead = 0;
+      if (lane) {
+        cost += weight * parseFloat(lane.Cost_per_kg_USD || 0);
+        if (state.includeFixed) {
+          cost += parseFloat(lane.Fixed_per_shipment_USD || 0) / 10000;
+        }
+        lead += parseFloat(lane.LeadTime_days || 0);
+      }
+      return {cost, lead, lane, destination:'United States'};
+    }
+
+    function computeCosts(assemblyOverride) {
+      const products = state.rawSheets.Products || [];
+      const bom = state.rawSheets.BOM || [];
+      const components = state.rawSheets.Components || [];
+      const assemblyOptions = state.rawSheets.AssemblyOptions || [];
+      const sites = state.rawSheets.Sites || [];
+      const results = [];
+      products.forEach(product => {
+        const sku = product.SKU;
+        const assemblySiteId = assemblyOverride || state.assemblySite;
+        const assembly = assemblyOptions.find(row => row.SKU === sku && row.AssemblySiteID === assemblySiteId);
+        if (!assembly) return;
+        const yieldVal = parseFloat(assembly.Yield || 1) || 1;
+        const bomRows = bom.filter(row => row.ParentSKU === sku);
+        let materialCost = 0;
+        let componentTariffs = 0;
+        let componentLogistics = 0;
+        let componentLead = 0;
+        const componentDetails = [];
+        bomRows.forEach(item => {
+          const comp = components.find(row => row.PartID === item.PartID);
+          if (!comp) return;
+          const qty = parseFloat(item.Qty || 0);
+          const basePrice = parseFloat(comp.BasePrice_local || comp.BasePrice_CHF || 0);
+          const adjustedQty = qty / yieldVal;
+          const value = adjustedQty * basePrice;
+          materialCost += value;
+          const logistics = computeLogisticsComponent(comp, (sites.find(s => s.SiteID === assemblySiteId) || {}).Country || '');
+          componentLogistics += logistics.cost * adjustedQty;
+          componentLead += logistics.lead;
+          const tariff = computeTariffs(value, comp.Class || comp.ComponentClass || 'Unknown', logistics.originCountry || 'Unknown');
+          componentTariffs += tariff.amount;
+          componentDetails.push({
+            part: comp.PartID,
+            class: comp.Class,
+            origin: logistics.originCountry,
+            tariffRate: tariff.rate,
+            tariffAmount: tariff.amount,
+            logisticsCost: logistics.cost * adjustedQty,
+            logisticsLane: logistics.lane,
+            originSiteID: logistics.originSiteID,
+            destCountry: logistics.targetCountry
+          });
+        });
+        const conversion = parseFloat(assembly.BaseConvCost_USD || assembly.BaseConvCost_CHF || 0);
+        const finishedLog = computeFinishedLogistics(product, assemblySiteId);
+        const finalTariffInfo = computeTariffs(materialCost + conversion + finishedLog.cost, 'FinalAssembly', (sites.find(s => s.SiteID === assemblySiteId) || {}).Country || 'Unknown');
+        const totalTariffs = componentTariffs + finalTariffInfo.amount;
+        const logisticsTotal = componentLogistics + finishedLog.cost;
+        const landed = materialCost + conversion + logisticsTotal + totalTariffs;
+        const listPrice = parseFloat(product.ListPrice_CHF || product.ListPrice_USD || 0);
+        const margin = listPrice - landed;
+        const marginPct = listPrice ? (margin / listPrice) * 100 : 0;
+        results.push({
+          SKU: sku,
+          Description: product.Description,
+          AssemblySite: assemblySiteId,
+          Material_CHF: materialCost,
+          Logistics_CHF: logisticsTotal,
+          Tariffs_CHF: totalTariffs,
+          Conversion_CHF: conversion,
+          LandedCost_CHF: landed,
+          ListPrice_CHF: listPrice,
+          Margin_CHF: margin,
+          MarginPct: marginPct,
+          FinalTariffRate: finalTariffInfo.rate,
+          ComponentLeadTime: componentLead,
+          FinishedLeadTime: finishedLog.lead,
+          TotalLeadTime: componentLead + finishedLog.lead,
+          ComponentDetails: componentDetails,
+          FinishedLogLane: finishedLog.lane
+        });
+      });
+      return results;
+    }
+
+    function recompute() {
+      updateWarnings();
+      if (!state.rawSheets.Products || !state.rawSheets.Products.length) {
+        return;
+      }
+      const assemblyIds = [...new Set((state.rawSheets.AssemblyOptions || []).map(row => row.AssemblySiteID))];
+      state.allAssemblies = {};
+      assemblyIds.forEach(site => {
+        state.allAssemblies[site] = computeCosts(site);
+      });
+      const selected = state.allAssemblies[state.assemblySite] || [];
+      state.computed = selected;
+      rowCountEl.textContent = `${selected.length} SKUs`;
+      scenarioLabelEl.textContent = `Scenario ${state.scenarioDate || ''}`;
+      updateKpis();
+      renderCostChart();
+      renderTable();
+      renderMap();
+      renderWhatIf();
+      updateInsights();
+    }
+
+    function updateKpis() {
+      const sku = skuSelectEl.value;
+      const row = state.computed.find(r => r.SKU === sku);
+      kpiGridEl.innerHTML = '';
+      const metrics = [
+        {label:'Landed cost', value: row ? formatCHF(row.LandedCost_CHF) : 'CHF –'},
+        {label:'Margin', value: row ? formatCHF(row.Margin_CHF) : 'CHF –'},
+        {label:'Margin %', value: row ? (row.MarginPct ? row.MarginPct.toFixed(1) + '%' : '0%') : '0%'}
+      ];
+      metrics.forEach(metric => {
+        const div = document.createElement('div');
+        div.className = 'kpi';
+        div.innerHTML = `<div class="label">${metric.label}</div><div class="value">${metric.value}</div>`;
+        kpiGridEl.appendChild(div);
+      });
+    }
+
+    function renderCostChart() {
+      const grouped = {};
+      const sites = Object.keys(state.allAssemblies || {});
+      sites.forEach(site => {
+        const rows = state.allAssemblies[site] || [];
+        grouped[site] = {Material:0, Logistics:0, Tariffs:0, Conversion:0};
+        rows.forEach(row => {
+          grouped[site].Material += row.Material_CHF;
+          grouped[site].Logistics += row.Logistics_CHF;
+          grouped[site].Tariffs += row.Tariffs_CHF;
+          grouped[site].Conversion += row.Conversion_CHF;
+        });
+      });
+      if (!sites.length) {
+        Plotly.purge('cost-chart');
+        return;
+      }
+      const components = ['Material','Logistics','Tariffs','Conversion'];
+      const data = components.map((comp, idx) => ({
+        type:'bar',
+        orientation:'h',
+        name:comp,
+        x: sites.map(site => grouped[site][comp]),
+        y: sites,
+        marker:{color:['#264653','#2a9d8f','#e9c46a','#e76f51'][idx]}
+      }));
+      const layout = {
+        barmode:'stack',
+        height:320,
+        margin:{l:140,r:20,t:30,b:40},
+        xaxis:{title:'CHF'},
+        yaxis:{title:'Assembly site'}
+      };
+      Plotly.newPlot('cost-chart', data, layout, {displayModeBar:false, responsive:true});
+      renderLegend(sites);
+    }
+
+    function renderLegend(sites) {
+      siteLegendEl.innerHTML = '';
+      sites.forEach(site => {
+        const span = document.createElement('span');
+        const color = state.legendColors[site] || '#999';
+        span.innerHTML = `<span class="dot" style="background:${color}"></span>${site}`;
+        siteLegendEl.appendChild(span);
+      });
+    }
+
+    function renderTable() {
+      const tableData = state.computed.map(row => ({
+        SKU: row.SKU,
+        AssemblySite: row.AssemblySite,
+        Material_CHF: row.Material_CHF,
+        Logistics_CHF: row.Logistics_CHF,
+        Tariffs_CHF: row.Tariffs_CHF,
+        Conversion_CHF: row.Conversion_CHF,
+        LandedCost_CHF: row.LandedCost_CHF,
+        ListPrice_CHF: row.ListPrice_CHF,
+        Margin_CHF: row.Margin_CHF,
+        MarginPct: row.MarginPct
+      }));
+      if (state.tableInstance) {
+        state.tableInstance.replaceData(tableData);
+        return;
+      }
+      state.tableInstance = new Tabulator('#sku-table', {
+        data: tableData,
+        layout:'fitColumns',
+        height:320,
+        columns:[
+          {title:'SKU', field:'SKU', width:150, headerFilter:'input'},
+          {title:'Assembly site', field:'AssemblySite', width:150, headerFilter:true},
+          {title:'Material (CHF)', field:'Material_CHF', formatter:currencyFormatter, bottomCalc:'sum'},
+          {title:'Logistics (CHF)', field:'Logistics_CHF', formatter:currencyFormatter, bottomCalc:'sum'},
+          {title:'Tariffs (CHF)', field:'Tariffs_CHF', formatter:currencyFormatter, bottomCalc:'sum'},
+          {title:'Conversion (CHF)', field:'Conversion_CHF', formatter:currencyFormatter, bottomCalc:'sum'},
+          {title:'Landed cost (CHF)', field:'LandedCost_CHF', formatter:currencyFormatter, bottomCalc:'sum'},
+          {title:'List price (CHF)', field:'ListPrice_CHF', formatter:currencyFormatter},
+          {title:'Margin (CHF)', field:'Margin_CHF', formatter:currencyFormatter},
+          {title:'Margin %', field:'MarginPct', formatter:percentFormatter}
+        ]
+      });
+    }
+
+    function currencyFormatter(cell) {
+      const value = cell.getValue();
+      if (value == null || value === '') return '';
+      return formatCHF(value);
+    }
+
+    function percentFormatter(cell) {
+      const value = cell.getValue();
+      return value != null ? value.toFixed(1) + '%' : '';
+    }
+
+    function renderMap() {
+      if (!document.getElementById('map-tab').classList.contains('active')) return;
+      const nodes = state.rawSheets.MapNodes || [];
+      if (!nodes.length) {
+        Plotly.purge('map-chart');
+        return;
+      }
+      const sku = skuSelectEl.value;
+      const row = state.computed.find(r => r.SKU === sku);
+      const traces = [];
+      const scatter = {
+        type:'scattergeo',
+        mode:'markers+text',
+        lat:nodes.map(n => parseFloat(n.Lat || 0)),
+        lon:nodes.map(n => parseFloat(n.Lon || 0)),
+        text:nodes.map(n => n.SiteID),
+        textposition:'top center',
+        marker:{size:8, color:nodes.map(n => state.legendColors[n.SiteID] || '#555')}
+      };
+      traces.push(scatter);
+      if (row) {
+        const flows = [];
+        row.ComponentDetails.forEach(detail => {
+          const originNode = nodes.find(n => n.SiteID === detail.originSiteID) || nodes.find(n => n.Country === detail.origin);
+          const assemblyNode = nodes.find(n => n.SiteID === row.AssemblySite);
+          if (originNode && assemblyNode) {
+            flows.push({
+              lat:[parseFloat(originNode.Lat), parseFloat(assemblyNode.Lat)],
+              lon:[parseFloat(originNode.Lon), parseFloat(assemblyNode.Lon)],
+              weight: detail.logisticsCost || 0,
+              label: `${detail.part}: ${detail.origin} → ${assemblyNode.Country}`,
+              tariff: detail.tariffRate
+            });
+          }
+        });
+        const finishedFlowNode = nodes.find(n => n.SiteID === row.AssemblySite);
+        const usNode = nodes.find(n => n.Country === 'United States');
+        if (finishedFlowNode && usNode && finishedFlowNode.Country !== 'United States') {
+          flows.push({
+            lat:[parseFloat(finishedFlowNode.Lat), parseFloat(usNode.Lat)],
+            lon:[parseFloat(finishedFlowNode.Lon), parseFloat(usNode.Lon)],
+            weight: row.LandedCost_CHF ? row.Logistics_CHF / row.LandedCost_CHF : 0,
+            label:`Finished good: ${finishedFlowNode.Country} → United States`,
+            tariff: row.FinalTariffRate
+          });
+        }
+        flows.forEach(flow => {
+          const share = row.LandedCost_CHF ? Math.max(0.05, Math.min(0.9, flow.weight / row.LandedCost_CHF)) : 0.1;
+          traces.push({
+            type:'scattergeo',
+            mode:'lines',
+            lat:flow.lat,
+            lon:flow.lon,
+            line:{width:2 + share * 8, color:'#e76f51'},
+            hoverinfo:'text',
+            text:`${flow.label}<br>Tariff ${flow.tariff.toFixed(1)}%`
+          });
+        });
+      }
+      const layout = {
+        geo:{
+          projection:{type:'natural earth'},
+          showland:true,
+          landcolor:'#f2efe9'
+        },
+        margin:{t:20,b:20,l:10,r:10}
+      };
+      Plotly.newPlot('map-chart', traces, layout, {displayModeBar:false, responsive:true});
+    }
+
+    function renderWhatIf() {
+      if (!document.getElementById('whatif-tab').classList.contains('active')) return;
+      const assemblyOptions = Object.keys(state.allAssemblies || {});
+      if (!assemblyOptions.length) {
+        Plotly.purge('whatif-chart');
+        return;
+      }
+      const sku = skuSelectEl.value;
+      const scenarios = assemblyOptions.map(site => {
+        const rows = state.allAssemblies[site] || [];
+        const row = rows.find(r => r.SKU === sku);
+        return row ? {...row} : null;
+      }).filter(Boolean);
+      const trace = {
+        type:'scatter',
+        mode:'markers+text',
+        x: scenarios.map(s => s.TotalLeadTime),
+        y: scenarios.map(s => s.MarginPct),
+        text: scenarios.map(s => s.AssemblySite),
+        textposition:'top center',
+        marker:{size:12, color:scenarios.map(s => state.legendColors[s.AssemblySite] || '#444')}
+      };
+      const layout = {
+        xaxis:{title:'Approx lead time (days)'},
+        yaxis:{title:'Margin %'},
+        margin:{t:30,r:20,l:60,b:60}
+      };
+      Plotly.newPlot('whatif-chart', [trace], layout, {displayModeBar:false, responsive:true});
+    }
+
+    function updateInsights() {
+      if (!state.allAssemblies || !Object.keys(state.allAssemblies).length) {
+        insightsEl.textContent = 'Upload the workbook to begin analyzing landed costs and tariff impacts.';
+        return;
+      }
+      const assemblyOptions = Object.keys(state.allAssemblies);
+      if (assemblyOptions.length < 2) {
+        insightsEl.textContent = 'Review cost components and adjust tariff overrides to explore scenarios.';
+        return;
+      }
+      const bySite = {};
+      assemblyOptions.forEach(site => {
+        const rows = state.allAssemblies[site] || [];
+        rows.forEach(row => {
+          if (!bySite[site]) bySite[site] = {marginPct:0, count:0};
+          bySite[site].marginPct += row.MarginPct;
+          bySite[site].count += 1;
+        });
+      });
+      const averages = Object.entries(bySite).map(([site, agg]) => ({site, avg: agg.marginPct / agg.count})).sort((a,b) => b.avg - a.avg);
+      if (averages.length >= 2) {
+        const best = averages[0];
+        const base = averages[averages.length - 1];
+        const delta = best.avg - base.avg;
+        insightsEl.textContent = `${best.site} delivers the highest average margin at ${best.avg.toFixed(1)}%. This is ${delta.toFixed(1)} pts better than ${base.site}.`;
+      } else {
+        insightsEl.textContent = 'Scenario ready. Adjust controls to evaluate tariff exposure.';
+      }
+    }
+
+    // Initialize empty layout state
+    updateWarnings();
+  </script>
+</body>
+</html>
