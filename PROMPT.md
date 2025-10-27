@@ -11,7 +11,7 @@ Libraries (via CDN, latest stable):
 - SheetJS xlsx (to parse .xlsx in browser)
 
 Data input:
-- Primary: user uploads JE_Tariff_Shock_Demo_v4.xlsx (from working dir) using a file input.
+- Primary: user uploads JE_Tariff_Shock_Demo_v5.xlsx (from working dir; example in repo) using a file input.
 - Fallback: allow uploading a zipped set of CSVs OR pasting JSON rows.
 - Read these sheets from the workbook: Products, BOM, Components, Sites, AssemblyOptions,
   LogisticsLanes, TariffScenarios, Tariffs_US, TariffInputs, MapNodes, FX (for display only).
