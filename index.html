@@ -416,6 +416,11 @@
       return `${val}`.trim();
     };
 
+    const normalizeKey = (val) => {
+      const base = normalizeId(val);
+      return base ? base.toUpperCase() : '';
+    };
+
     const normalizeSheetRows = (rows = []) => rows.map(row => {
       const normalized = {};
       Object.entries(row || {}).forEach(([key, value]) => {
@@ -622,7 +627,7 @@
       const bySKU = new Map();
       options.forEach(row => {
         const sku = normalizeId(row['SKU']);
-        const siteId = normalizeId(row['AssemblySiteID']);
+        const siteId = normalizeKey(row['AssemblySiteID']);
         if (!sku || !siteId) return;
         if (!bySKU.has(sku)) bySKU.set(sku, []);
         bySKU.get(sku).push({ ...row, SKU: sku, AssemblySiteID: siteId });
@@ -676,15 +681,16 @@
       const assemblyOptions = getAssemblyOptions();
       const siteMap = new Map();
       sites.forEach(site => {
-        const siteId = normalizeId(site['SiteID']);
+        const siteId = normalizeKey(site['SiteID']);
         if (!siteId) return;
-        siteMap.set(siteId, { ...site, SiteID: siteId, Country: normalizeId(site['Country']) || site['Country'] });
+        const country = normalizeValue(site['Country']) || site['Country'];
+        siteMap.set(siteId, { ...site, SiteID: siteId, Country: country });
       });
       const componentMap = new Map();
       components.forEach(comp => {
         const partId = normalizeId(comp['PartID']);
         if (!partId) return;
-        componentMap.set(partId, { ...comp, PartID: partId, OriginSiteID: normalizeId(comp['OriginSiteID']) });
+        componentMap.set(partId, { ...comp, PartID: partId, OriginSiteID: normalizeKey(comp['OriginSiteID']) });
       });
       const bomBySKU = new Map();
       bom.forEach(row => {
@@ -693,16 +699,16 @@
         if (!bomBySKU.has(sku)) bomBySKU.set(sku, []);
         bomBySKU.get(sku).push({ ...row, ParentSKU: sku, PartID: normalizeId(row['PartID']) });
       });
-      const assemblySiteId = normalizeId(assemblySiteOverride || state.assemblySite);
+      const assemblySiteId = normalizeKey(assemblySiteOverride || state.assemblySite);
       const results = [];
       products.forEach(product => {
         const sku = normalizeId(product['SKU']);
         if (!sku) return;
         if (state.skuFilter && state.skuFilter !== sku) return;
         const options = assemblyOptions.get(sku) || [];
-        const assemblyOption = options.find(opt => normalizeId(opt['AssemblySiteID']) === assemblySiteId);
+        const assemblyOption = options.find(opt => normalizeKey(opt['AssemblySiteID']) === assemblySiteId);
         if (!assemblyOption) return;
-        const assemblySite = siteMap.get(normalizeId(assemblyOption['AssemblySiteID'])) || { Country: 'Unknown', SiteID: assemblyOption['AssemblySiteID'] };
+        const assemblySite = siteMap.get(normalizeKey(assemblyOption['AssemblySiteID'])) || { Country: 'Unknown', SiteID: assemblyOption['AssemblySiteID'] };
         const componentRows = bomBySKU.get(sku) || [];
         let materialCost = 0;
         let logisticsCost = 0;
@@ -712,7 +718,7 @@
         componentRows.forEach(row => {
           const part = componentMap.get(normalizeId(row['PartID']));
           if (!part) return;
-          const originSite = siteMap.get(normalizeId(part['OriginSiteID']));
+          const originSite = siteMap.get(normalizeKey(part['OriginSiteID']));
           let originCountry = originSite ? originSite['Country'] : part['OriginSiteID'];
           if (state.motorRouting !== 'default' && part['Class'] && part['Class'].toString().toLowerCase().includes('motor') && originCountry && originCountry.toLowerCase() === 'china') {
             originCountry = state.motorRouting;
@@ -890,13 +896,13 @@
       const nodes = state.sheets['MapNodes'] || [];
       const nodeMap = new Map();
       nodes.forEach(node => {
-        const siteId = normalizeId(node['SiteID']);
+        const siteId = normalizeKey(node['SiteID']);
         if (!siteId) return;
         nodeMap.set(siteId, { ...node, SiteID: siteId });
       });
       const siteMap = new Map();
       (state.sheets['Sites'] || []).forEach(site => {
-        const siteId = normalizeId(site['SiteID']);
+        const siteId = normalizeKey(site['SiteID']);
         if (!siteId) return;
         siteMap.set(siteId, { ...site, SiteID: siteId });
       });
@@ -925,19 +931,19 @@
       const lines = [];
       data.forEach(row => {
         const sku = row.SKU;
-        const assemblyNode = nodeMap.get(normalizeId(row.AssemblySiteID));
+        const assemblyNode = nodeMap.get(normalizeKey(row.AssemblySiteID));
         if (!assemblyNode) return;
         const componentRows = bomRows.filter(b => normalizeId(b['ParentSKU']) === sku);
         componentRows.forEach(item => {
           const comp = componentMap.get(normalizeId(item['PartID']));
           if (!comp) return;
-          const originSite = siteMap.get(normalizeId(comp['OriginSiteID']));
+          const originSite = siteMap.get(normalizeKey(comp['OriginSiteID']));
           if (!originSite) return;
           let originCountry = originSite['Country'];
           if (state.motorRouting !== 'default' && (comp['Class'] || '').toString().toLowerCase().includes('motor') && originCountry && originCountry.toLowerCase() === 'china') {
             originCountry = state.motorRouting;
           }
-          const originNode = nodes.find(node => normalizeId(node['Country']).toLowerCase() === normalizeId(originCountry).toLowerCase() && node['Role'] === 'Supplier') || nodeMap.get(normalizeId(comp['OriginSiteID']));
+          const originNode = nodes.find(node => normalizeId(node['Country']).toLowerCase() === normalizeId(originCountry).toLowerCase() && node['Role'] === 'Supplier') || nodeMap.get(normalizeKey(comp['OriginSiteID']));
           if (!originNode) return;
           const laneShare = row.MaterialCost_CHF ? ((toNumber(comp['BasePrice_CHF']) * toNumber(item['Qty'])) / row.MaterialCost_CHF) : 0;
           lines.push({
@@ -1037,7 +1043,7 @@
     function updateState() {
       const selectedAssemblyRadio = Array.from(assemblyRadios).find(r => r.checked);
       if (selectedAssemblyRadio) {
-        state.assemblySite = normalizeId(selectedAssemblyRadio.value);
+        state.assemblySite = normalizeKey(selectedAssemblyRadio.value);
       }
       state.includeFixed = !!includeFixedCheckbox.checked;
       const cache = new Map();
