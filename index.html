@@ -276,7 +276,7 @@
       <div class="control-group" id="assembly-group">
         <span>Final Assembly Site</span>
         <div id="assembly-options">
-          <div class="option"><input type="radio" name="assembly" value="BU_CH_MUR" id="assembly-ch" /><label for="assembly-ch">BU_CH_MUR</label></div>
+          <div class="option"><input type="radio" name="assembly" value="BU_CH_MUR" id="assembly-ch" checked /><label for="assembly-ch">BU_CH_MUR</label></div>
           <div class="option"><input type="radio" name="assembly" value="PLANT_US_MI" id="assembly-us" /><label for="assembly-us">PLANT_US_MI</label></div>
           <div class="option"><input type="radio" name="assembly" value="PLANT_MX_NL" id="assembly-mx" /><label for="assembly-mx">PLANT_MX_NL</label></div>
         </div>
@@ -404,6 +404,34 @@
       return isFinite(num) ? num : fallback;
     };
 
+    const normalizeValue = (val) => {
+      if (typeof val === 'string') {
+        return val.trim();
+      }
+      return val;
+    };
+
+    const normalizeId = (val) => {
+      if (val == null) return '';
+      return `${val}`.trim();
+    };
+
+    const normalizeSheetRows = (rows = []) => rows.map(row => {
+      const normalized = {};
+      Object.entries(row || {}).forEach(([key, value]) => {
+        normalized[key] = normalizeValue(value);
+      });
+      return normalized;
+    });
+
+    const normalizeSheets = (sheets = {}) => {
+      const normalized = {};
+      Object.entries(sheets).forEach(([name, rows]) => {
+        normalized[name] = Array.isArray(rows) ? normalizeSheetRows(rows) : rows;
+      });
+      return normalized;
+    };
+
     const setWarning = (messages = []) => {
       if (messages.length) {
         warningBox.style.display = 'block';
@@ -453,8 +481,9 @@
           const text = await file.text();
           sheets = JSON.parse(text);
         }
-        state.sheets = sheets;
-        ensureSheets(sheets);
+        const normalizedSheets = normalizeSheets(sheets);
+        state.sheets = normalizedSheets;
+        ensureSheets(normalizedSheets);
         initializeUI();
       } catch (error) {
         console.error(error);
@@ -463,6 +492,9 @@
     }
 
     function initializeUI() {
+      state.tariffOverrides = new Map();
+      state.motorRouting = 'default';
+      motorRoutingSelect.value = 'default';
       populateScenarios();
       populateSKUSelector();
       populateTariffOverrides();
@@ -478,7 +510,7 @@
       }
       scenarioContainer.innerHTML = '';
       scenarios.forEach((scenario, idx) => {
-        const date = scenario['ScenarioDate'];
+        const date = normalizeId(scenario['ScenarioDate']);
         const label = scenario['Description'] ? `${date} – ${scenario['Description']}` : date;
         const id = `scenario-${idx}`;
         const option = document.createElement('div');
@@ -488,12 +520,12 @@
       });
       const radios = scenarioContainer.querySelectorAll('input[name="scenario"]');
       const defaultScenario = (state.sheets['TariffInputs'] || []).find(row => row['ScenarioDateDefault']);
-      const defaultDate = defaultScenario ? defaultScenario['ScenarioDateDefault'] : scenarios[0]['ScenarioDate'];
+      const defaultDate = normalizeId(defaultScenario ? defaultScenario['ScenarioDateDefault'] : scenarios[0]['ScenarioDate']);
       state.scenarioDate = defaultDate;
       radios.forEach(radio => {
-        if (radio.value === defaultDate) radio.checked = true;
+        if (normalizeId(radio.value) === defaultDate) radio.checked = true;
         radio.addEventListener('change', () => {
-          state.scenarioDate = radio.value;
+          state.scenarioDate = normalizeId(radio.value);
           populateTariffOverrides(true);
           updateState();
         });
@@ -504,14 +536,15 @@
       const products = state.sheets['Products'] || [];
       skuSelect.innerHTML = '<option value="all">All SKUs</option>';
       products.forEach(prod => {
+        const sku = normalizeId(prod['SKU']);
         const option = document.createElement('option');
-        option.value = prod['SKU'];
-        option.textContent = `${prod['SKU']} – ${prod['Description'] || ''}`;
+        option.value = sku;
+        option.textContent = `${sku} – ${prod['Description'] || ''}`;
         skuSelect.appendChild(option);
       });
       skuSelect.value = 'all';
       skuSelect.addEventListener('change', () => {
-        state.skuFilter = skuSelect.value === 'all' ? null : skuSelect.value;
+        state.skuFilter = skuSelect.value === 'all' ? null : normalizeId(skuSelect.value);
         updateState();
       });
     }
@@ -527,8 +560,10 @@
         state.tariffOverrides = new Map();
       }
       inputs.forEach((row, idx) => {
-        const key = `${row['ComponentClass']}|${row['OriginCountry']}`;
-        const baseRate = resolveScenarioTariff(row['ComponentClass'], row['OriginCountry']);
+        const componentClass = normalizeId(row['ComponentClass']);
+        const originCountry = normalizeId(row['OriginCountry']);
+        const key = `${componentClass}|${originCountry}`;
+        const baseRate = resolveScenarioTariff(componentClass, originCountry);
         if (forceReset || !state.tariffOverrides.has(key)) {
           state.tariffOverrides.set(key, baseRate);
         }
@@ -558,15 +593,17 @@
     }
 
     function resolveScenarioTariff(componentClass, originCountry) {
+      const classKey = normalizeId(componentClass);
+      const originKey = normalizeId(originCountry);
       const tariffs = state.sheets['Tariffs_US'] || [];
-      const scenarioRow = tariffs.find(row => `${row['ScenarioDate']}` === `${state.scenarioDate}`
-        && row['ComponentClass'] === componentClass
-        && row['OriginCountry'] === originCountry);
+      const scenarioRow = tariffs.find(row => normalizeId(row['ScenarioDate']) === state.scenarioDate
+        && normalizeId(row['ComponentClass']) === classKey
+        && normalizeId(row['OriginCountry']) === originKey);
       if (scenarioRow) {
         return toNumber(scenarioRow['US_AdValoremTariff_pct']);
       }
       const inputs = state.sheets['TariffInputs'] || [];
-      const fallback = inputs.find(row => row['ComponentClass'] === componentClass && row['OriginCountry'] === originCountry);
+      const fallback = inputs.find(row => normalizeId(row['ComponentClass']) === classKey && normalizeId(row['OriginCountry']) === originKey);
       if (fallback) {
         const preferred = fallback['DefaultRate_pct'] != null && fallback['DefaultRate_pct'] !== ''
           ? fallback['DefaultRate_pct']
@@ -584,29 +621,35 @@
       const options = state.sheets['AssemblyOptions'] || [];
       const bySKU = new Map();
       options.forEach(row => {
-        const sku = row['SKU'];
+        const sku = normalizeId(row['SKU']);
+        const siteId = normalizeId(row['AssemblySiteID']);
+        if (!sku || !siteId) return;
         if (!bySKU.has(sku)) bySKU.set(sku, []);
-        bySKU.get(sku).push(row);
+        bySKU.get(sku).push({ ...row, SKU: sku, AssemblySiteID: siteId });
       });
       return bySKU;
     }
 
     function findLane(fromCountry, toCountry) {
-      if (!fromCountry || !toCountry) return null;
+      const from = normalizeId(fromCountry).toLowerCase();
+      const to = normalizeId(toCountry).toLowerCase();
+      if (!from || !to) return null;
       const lanes = state.sheets['LogisticsLanes'] || [];
-      return lanes.find(lane => (lane['FromCountry'] || '').toLowerCase() === (fromCountry || '').toLowerCase() && (lane['ToCountry'] || '').toLowerCase() === (toCountry || '').toLowerCase());
+      return lanes.find(lane => normalizeId(lane['FromCountry']).toLowerCase() === from && normalizeId(lane['ToCountry']).toLowerCase() === to);
     }
 
     function getTariffRate(componentClass, originCountry) {
-      const key = `${componentClass}|${originCountry}`;
+      const classKey = normalizeId(componentClass);
+      const originKey = normalizeId(originCountry);
+      const key = `${classKey}|${originKey}`;
       if (state.tariffOverrides.has(key)) {
         return toNumber(state.tariffOverrides.get(key));
       }
       const tariffs = state.sheets['Tariffs_US'] || [];
-      const scenario = tariffs.find(row => `${row['ScenarioDate']}` === `${state.scenarioDate}` && row['ComponentClass'] === componentClass && row['OriginCountry'] === originCountry);
+      const scenario = tariffs.find(row => normalizeId(row['ScenarioDate']) === state.scenarioDate && normalizeId(row['ComponentClass']) === classKey && normalizeId(row['OriginCountry']) === originKey);
       if (scenario) return toNumber(scenario['US_AdValoremTariff_pct']);
       const inputs = state.sheets['TariffInputs'] || [];
-      const fallback = inputs.find(row => row['ComponentClass'] === componentClass && row['OriginCountry'] === originCountry);
+      const fallback = inputs.find(row => normalizeId(row['ComponentClass']) === classKey && normalizeId(row['OriginCountry']) === originKey);
       if (fallback) return toNumber(fallback['DefaultRate_pct']);
       return 0;
     }
@@ -631,23 +674,35 @@
       const bom = state.sheets['BOM'] || [];
       const sites = state.sheets['Sites'] || [];
       const assemblyOptions = getAssemblyOptions();
-      const siteMap = new Map(sites.map(site => [site['SiteID'], site]));
-      const componentMap = new Map(components.map(comp => [comp['PartID'], comp]));
+      const siteMap = new Map();
+      sites.forEach(site => {
+        const siteId = normalizeId(site['SiteID']);
+        if (!siteId) return;
+        siteMap.set(siteId, { ...site, SiteID: siteId, Country: normalizeId(site['Country']) || site['Country'] });
+      });
+      const componentMap = new Map();
+      components.forEach(comp => {
+        const partId = normalizeId(comp['PartID']);
+        if (!partId) return;
+        componentMap.set(partId, { ...comp, PartID: partId, OriginSiteID: normalizeId(comp['OriginSiteID']) });
+      });
       const bomBySKU = new Map();
       bom.forEach(row => {
-        const sku = row['ParentSKU'];
+        const sku = normalizeId(row['ParentSKU']);
+        if (!sku) return;
         if (!bomBySKU.has(sku)) bomBySKU.set(sku, []);
-        bomBySKU.get(sku).push(row);
+        bomBySKU.get(sku).push({ ...row, ParentSKU: sku, PartID: normalizeId(row['PartID']) });
       });
-      const assemblySiteId = assemblySiteOverride || state.assemblySite;
+      const assemblySiteId = normalizeId(assemblySiteOverride || state.assemblySite);
       const results = [];
       products.forEach(product => {
-        if (state.skuFilter && state.skuFilter !== product['SKU']) return;
-        const sku = product['SKU'];
+        const sku = normalizeId(product['SKU']);
+        if (!sku) return;
+        if (state.skuFilter && state.skuFilter !== sku) return;
         const options = assemblyOptions.get(sku) || [];
-        const assemblyOption = options.find(opt => opt['AssemblySiteID'] === assemblySiteId);
+        const assemblyOption = options.find(opt => normalizeId(opt['AssemblySiteID']) === assemblySiteId);
         if (!assemblyOption) return;
-        const assemblySite = siteMap.get(assemblyOption['AssemblySiteID']) || { Country: 'Unknown', SiteID: assemblyOption['AssemblySiteID'] };
+        const assemblySite = siteMap.get(normalizeId(assemblyOption['AssemblySiteID'])) || { Country: 'Unknown', SiteID: assemblyOption['AssemblySiteID'] };
         const componentRows = bomBySKU.get(sku) || [];
         let materialCost = 0;
         let logisticsCost = 0;
@@ -655,9 +710,9 @@
         let leadTime = 0;
         const yieldFactor = toNumber(assemblyOption['Yield'], 1) || 1;
         componentRows.forEach(row => {
-          const part = componentMap.get(row['PartID']);
+          const part = componentMap.get(normalizeId(row['PartID']));
           if (!part) return;
-          const originSite = siteMap.get(part['OriginSiteID']);
+          const originSite = siteMap.get(normalizeId(part['OriginSiteID']));
           let originCountry = originSite ? originSite['Country'] : part['OriginSiteID'];
           if (state.motorRouting !== 'default' && part['Class'] && part['Class'].toString().toLowerCase().includes('motor') && originCountry && originCountry.toLowerCase() === 'china') {
             originCountry = state.motorRouting;
@@ -833,7 +888,26 @@
 
     function renderMap(data) {
       const nodes = state.sheets['MapNodes'] || [];
-      const nodeMap = new Map(nodes.map(node => [node['SiteID'], node]));
+      const nodeMap = new Map();
+      nodes.forEach(node => {
+        const siteId = normalizeId(node['SiteID']);
+        if (!siteId) return;
+        nodeMap.set(siteId, { ...node, SiteID: siteId });
+      });
+      const siteMap = new Map();
+      (state.sheets['Sites'] || []).forEach(site => {
+        const siteId = normalizeId(site['SiteID']);
+        if (!siteId) return;
+        siteMap.set(siteId, { ...site, SiteID: siteId });
+      });
+      const bomRows = state.sheets['BOM'] || [];
+      const components = state.sheets['Components'] || [];
+      const componentMap = new Map();
+      components.forEach(comp => {
+        const partId = normalizeId(comp['PartID']);
+        if (!partId) return;
+        componentMap.set(partId, comp);
+      });
       const scatterNodes = {
         type: 'scattergeo',
         mode: 'markers+text',
@@ -851,19 +925,19 @@
       const lines = [];
       data.forEach(row => {
         const sku = row.SKU;
-        const assemblyNode = nodeMap.get(row.AssemblySiteID);
+        const assemblyNode = nodeMap.get(normalizeId(row.AssemblySiteID));
         if (!assemblyNode) return;
-        const componentRows = (state.sheets['BOM'] || []).filter(b => b['ParentSKU'] === sku);
+        const componentRows = bomRows.filter(b => normalizeId(b['ParentSKU']) === sku);
         componentRows.forEach(item => {
-          const comp = (state.sheets['Components'] || []).find(c => c['PartID'] === item['PartID']);
+          const comp = componentMap.get(normalizeId(item['PartID']));
           if (!comp) return;
-          const originSite = (state.sheets['Sites'] || []).find(s => s['SiteID'] === comp['OriginSiteID']);
+          const originSite = siteMap.get(normalizeId(comp['OriginSiteID']));
           if (!originSite) return;
           let originCountry = originSite['Country'];
-          if (state.motorRouting !== 'default' && (comp['Class'] || '').toString().toLowerCase().includes('motor') && originCountry.toLowerCase() === 'china') {
+          if (state.motorRouting !== 'default' && (comp['Class'] || '').toString().toLowerCase().includes('motor') && originCountry && originCountry.toLowerCase() === 'china') {
             originCountry = state.motorRouting;
           }
-          const originNode = nodes.find(node => node['Country'] === originCountry && node['Role'] === 'Supplier') || nodeMap.get(comp['OriginSiteID']);
+          const originNode = nodes.find(node => normalizeId(node['Country']).toLowerCase() === normalizeId(originCountry).toLowerCase() && node['Role'] === 'Supplier') || nodeMap.get(normalizeId(comp['OriginSiteID']));
           if (!originNode) return;
           const laneShare = row.MaterialCost_CHF ? ((toNumber(comp['BasePrice_CHF']) * toNumber(item['Qty'])) / row.MaterialCost_CHF) : 0;
           lines.push({
@@ -877,7 +951,7 @@
           });
         });
         if ((row.AssemblyCountry || '').toLowerCase() !== 'united states') {
-          const usNode = nodes.find(node => node['Country'] === 'United States' && node['Role'] === 'Market');
+          const usNode = nodes.find(node => normalizeId(node['Country']).toLowerCase() === 'united states' && node['Role'] === 'Market');
           if (usNode) {
             lines.push({
               type: 'scattergeo',
@@ -963,9 +1037,9 @@
     function updateState() {
       const selectedAssemblyRadio = Array.from(assemblyRadios).find(r => r.checked);
       if (selectedAssemblyRadio) {
-        state.assemblySite = selectedAssemblyRadio.value;
+        state.assemblySite = normalizeId(selectedAssemblyRadio.value);
       }
-      state.includeFixed = includeFixedCheckbox.checked;
+      state.includeFixed = !!includeFixedCheckbox.checked;
       const cache = new Map();
       const data = computeCosts();
       cache.set(state.assemblySite, data);
@@ -992,8 +1066,9 @@
     document.getElementById('json-apply').addEventListener('click', () => {
       try {
         const parsed = JSON.parse(jsonInput.value);
-        state.sheets = parsed;
-        ensureSheets(parsed);
+        const normalized = normalizeSheets(parsed);
+        state.sheets = normalized;
+        ensureSheets(normalized);
         initializeUI();
         jsonDialog.close();
       } catch (error) {
@@ -1007,7 +1082,8 @@
       updateState();
     });
     motorRoutingSelect.addEventListener('change', () => {
-      state.motorRouting = motorRoutingSelect.value;
+      const value = motorRoutingSelect.value;
+      state.motorRouting = value === 'default' ? 'default' : normalizeId(value);
       updateState();
     });
     resetButton.addEventListener('click', () => {
@@ -1038,8 +1114,9 @@
         workbook.SheetNames.forEach(name => {
           sheets[name] = XLSX.utils.sheet_to_json(workbook.Sheets[name], { defval: null });
         });
-        state.sheets = sheets;
-        ensureSheets(sheets);
+        const normalized = normalizeSheets(sheets);
+        state.sheets = normalized;
+        ensureSheets(normalized);
         initializeUI();
       })
       .catch(err => {
