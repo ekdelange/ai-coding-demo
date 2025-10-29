@@ -276,9 +276,9 @@
       <div class="control-group" id="assembly-group">
         <span>Final Assembly Site</span>
         <div id="assembly-options">
-          <div class="option"><input type="radio" name="assembly" value="BU_CH_MUR" id="assembly-ch" checked /><label for="assembly-ch">BU_CH_MUR</label></div>
-          <div class="option"><input type="radio" name="assembly" value="PLANT_US_MI" id="assembly-us" /><label for="assembly-us">PLANT_US_MI</label></div>
-          <div class="option"><input type="radio" name="assembly" value="PLANT_MX_NL" id="assembly-mx" /><label for="assembly-mx">PLANT_MX_NL</label></div>
+          <div class="option"><input type="radio" name="assembly" value="BU_CH_MUR" id="assembly-ch" checked /><label for="assembly-ch">BU_CH_MUR (Murten, CH)</label></div>
+          <div class="option"><input type="radio" name="assembly" value="PLANT_US_MI" id="assembly-us" /><label for="assembly-us">PLANT_US_MI (Springfield, US)</label></div>
+          <div class="option"><input type="radio" name="assembly" value="PLANT_MX_NL" id="assembly-mx" /><label for="assembly-mx">PLANT_MX_NL (Zacatecas, MX)</label></div>
         </div>
       </div>
       <div class="control-group">
@@ -353,11 +353,17 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script>
+    const assemblySiteCatalog = [
+      { id: 'BU_CH_MUR', actual: 'BU_CH_MUR', label: 'BU_CH_MUR (Murten, CH)', color: '#ad4d20' },
+      { id: 'PLANT_US_MI', actual: 'PLANT_US_TN', label: 'PLANT_US_MI (Springfield, US)', color: '#1776bf' },
+      { id: 'PLANT_MX_NL', actual: 'PLANT_MX_ZAC', label: 'PLANT_MX_NL (Zacatecas, MX)', color: '#2b9d5a' }
+    ];
+
     const state = {
       sheets: {},
       warnings: [],
       scenarioDate: null,
-      assemblySite: 'BU_CH_MUR',
+      assemblySite: assemblySiteCatalog[0].id,
       includeFixed: false,
       tariffOverrides: new Map(),
       motorRouting: 'default',
@@ -367,11 +373,11 @@
 
     const requiredSheets = ['Products', 'BOM', 'Components', 'Sites', 'AssemblyOptions', 'LogisticsLanes', 'TariffScenarios', 'Tariffs_US', 'TariffInputs', 'MapNodes', 'FX'];
 
-    const colorBySite = {
-      'BU_CH_MUR': '#ad4d20',
-      'PLANT_US_MI': '#1776bf',
-      'PLANT_MX_NL': '#2b9d5a'
-    };
+    const colorBySite = assemblySiteCatalog.reduce((acc, site) => {
+      acc[site.id] = site.color;
+      acc[site.actual] = site.color;
+      return acc;
+    }, {});
 
     const fileInput = document.getElementById('file-input');
     const warningBox = document.getElementById('warnings');
@@ -619,7 +625,25 @@
     }
 
     function populateLegend() {
-      siteLegend.innerHTML = Object.entries(colorBySite).map(([site, color]) => `<span><i style="background:${color}"></i>${site}</span>`).join('');
+      siteLegend.innerHTML = assemblySiteCatalog.map(site => `<span><i style="background:${colorBySite[site.id]}"></i>${site.label}</span>`).join('');
+    }
+
+    function resolveAssemblyKey(value) {
+      const key = normalizeKey(value);
+      const match = assemblySiteCatalog.find(site => site.id === key || site.actual === key);
+      return match ? match.actual : key;
+    }
+
+    function displayAssemblyKey(value) {
+      const key = normalizeKey(value);
+      const match = assemblySiteCatalog.find(site => site.actual === key);
+      return match ? match.id : key;
+    }
+
+    function getAssemblyLabel(value) {
+      const key = normalizeKey(value);
+      const match = assemblySiteCatalog.find(site => site.id === key || site.actual === key);
+      return match ? match.label : value;
     }
 
     function getAssemblyOptions() {
@@ -699,7 +723,8 @@
         if (!bomBySKU.has(sku)) bomBySKU.set(sku, []);
         bomBySKU.get(sku).push({ ...row, ParentSKU: sku, PartID: normalizeId(row['PartID']) });
       });
-      const assemblySiteId = normalizeKey(assemblySiteOverride || state.assemblySite);
+      const requestedSiteId = normalizeKey(assemblySiteOverride || state.assemblySite);
+      const assemblySiteId = resolveAssemblyKey(requestedSiteId);
       const results = [];
       products.forEach(product => {
         const sku = normalizeId(product['SKU']);
@@ -708,7 +733,7 @@
         const options = assemblyOptions.get(sku) || [];
         const assemblyOption = options.find(opt => normalizeKey(opt['AssemblySiteID']) === assemblySiteId);
         if (!assemblyOption) return;
-        const assemblySite = siteMap.get(normalizeKey(assemblyOption['AssemblySiteID'])) || { Country: 'Unknown', SiteID: assemblyOption['AssemblySiteID'] };
+        const assemblySite = siteMap.get(resolveAssemblyKey(assemblyOption['AssemblySiteID'])) || { Country: 'Unknown', SiteID: assemblySiteId };
         const componentRows = bomBySKU.get(sku) || [];
         let materialCost = 0;
         let logisticsCost = 0;
@@ -753,7 +778,8 @@
         results.push({
           SKU: sku,
           Description: product['Description'],
-          AssemblySiteID: assemblyOption['AssemblySiteID'],
+          AssemblySiteID: displayAssemblyKey(assemblyOption['AssemblySiteID']),
+          AssemblySiteActualID: resolveAssemblyKey(assemblyOption['AssemblySiteID']),
           AssemblyCountry: assemblySite['Country'],
           MaterialCost_CHF: materialCost,
           LogisticsCost_CHF: logisticsCost,
@@ -770,7 +796,7 @@
     }
 
     function summarizeByAssembly(cache = null) {
-      const sites = ['BU_CH_MUR', 'PLANT_US_MI', 'PLANT_MX_NL'];
+      const sites = assemblySiteCatalog.map(site => site.id);
       const summary = [];
       sites.forEach(site => {
         let data = cache && cache.has(site) ? cache.get(site) : null;
@@ -798,7 +824,7 @@
     }
 
     function buildWhatIfDataset(cache = null) {
-      const sites = ['BU_CH_MUR', 'PLANT_US_MI', 'PLANT_MX_NL'];
+      const sites = assemblySiteCatalog.map(site => site.id);
       const combined = [];
       sites.forEach(site => {
         let data = cache && cache.has(site) ? cache.get(site) : null;
@@ -831,7 +857,7 @@
         Plotly.purge('cost-stacked');
         return;
       }
-      const sites = summary.map(item => item.site);
+      const sites = summary.map(item => getAssemblyLabel(item.site));
       const traces = [
         { key: 'material', name: 'Material', color: '#c3734b' },
         { key: 'logistics', name: 'Logistics', color: '#5d7ca6' },
@@ -931,7 +957,7 @@
       const lines = [];
       data.forEach(row => {
         const sku = row.SKU;
-        const assemblyNode = nodeMap.get(normalizeKey(row.AssemblySiteID));
+        const assemblyNode = nodeMap.get(resolveAssemblyKey(row.AssemblySiteActualID || row.AssemblySiteID));
         if (!assemblyNode) return;
         const componentRows = bomRows.filter(b => normalizeId(b['ParentSKU']) === sku);
         componentRows.forEach(item => {
@@ -1014,9 +1040,9 @@
       }
       const siteSummary = summaryOverride || summarizeByAssembly(cache);
       const selectedSite = state.assemblySite;
+      const selectedLabel = getAssemblyLabel(selectedSite);
       const selectedAvg = data.reduce((acc, row) => acc + row.MarginPct, 0) / data.length;
-      const comparator = siteSummary.find(item => item.site !== selectedSite);
-      let message = `Current focus: ${selectedSite}. Average margin ${selectedAvg.toFixed(1)}%.`;
+      let message = `Current focus: ${selectedLabel}. Average margin ${selectedAvg.toFixed(1)}%.`;
       const alt = siteSummary.filter(item => item.site !== selectedSite);
       if (alt.length) {
         const deltas = alt.map(item => {
@@ -1031,7 +1057,7 @@
         if (deltas.length) {
           const top = deltas[0];
           const sign = top.delta >= 0 ? '+' : '';
-          message += ` ${top.site} changes margin by ${sign}${top.delta.toFixed(1)} pts.`;
+          message += ` ${getAssemblyLabel(top.site)} changes margin by ${sign}${top.delta.toFixed(1)} pts.`;
         }
       }
       if (state.motorRouting !== 'default') {
