@@ -494,6 +494,7 @@
         if (radio.value === defaultDate) radio.checked = true;
         radio.addEventListener('change', () => {
           state.scenarioDate = radio.value;
+          populateTariffOverrides(true);
           updateState();
         });
       });
@@ -515,28 +516,32 @@
       });
     }
 
-    function populateTariffOverrides() {
+    function populateTariffOverrides(forceReset = false) {
       const inputs = (state.sheets['TariffInputs'] || []).filter(row => row['Editable']);
       if (!inputs.length) {
         tariffSliderList.textContent = 'No editable tariffs.';
         return;
       }
       tariffSliderList.innerHTML = '';
+      if (forceReset) {
+        state.tariffOverrides = new Map();
+      }
       inputs.forEach((row, idx) => {
         const key = `${row['ComponentClass']}|${row['OriginCountry']}`;
-        const defaultRate = toNumber(row['UserRate_pct'] ?? row['DefaultRate_pct']);
-        if (!state.tariffOverrides.has(key)) {
-          state.tariffOverrides.set(key, defaultRate);
+        const baseRate = resolveScenarioTariff(row['ComponentClass'], row['OriginCountry']);
+        if (forceReset || !state.tariffOverrides.has(key)) {
+          state.tariffOverrides.set(key, baseRate);
         }
+        const sliderValue = toNumber(state.tariffOverrides.get(key));
         const wrapper = document.createElement('div');
         wrapper.className = 'option';
         wrapper.style.flexDirection = 'column';
         wrapper.innerHTML = `
           <div style="width:100%;display:flex;justify-content:space-between;font-size:0.85rem;">
             <span>${row['ComponentClass']} (${row['OriginCountry']})</span>
-            <strong id="tariff-value-${idx}">${toNumber(state.tariffOverrides.get(key)).toFixed(2)}%</strong>
+            <strong id="tariff-value-${idx}">${sliderValue.toFixed(2)}%</strong>
           </div>
-          <input type="range" min="0" max="60" step="0.25" value="${toNumber(state.tariffOverrides.get(key)).toFixed(2)}" data-key="${key}" data-label="tariff-value-${idx}">
+          <input type="range" min="0" max="60" step="0.25" value="${sliderValue.toFixed(2)}" data-key="${key}" data-label="tariff-value-${idx}">
         `;
         tariffSliderList.appendChild(wrapper);
       });
@@ -550,6 +555,25 @@
           updateState();
         });
       });
+    }
+
+    function resolveScenarioTariff(componentClass, originCountry) {
+      const tariffs = state.sheets['Tariffs_US'] || [];
+      const scenarioRow = tariffs.find(row => `${row['ScenarioDate']}` === `${state.scenarioDate}`
+        && row['ComponentClass'] === componentClass
+        && row['OriginCountry'] === originCountry);
+      if (scenarioRow) {
+        return toNumber(scenarioRow['US_AdValoremTariff_pct']);
+      }
+      const inputs = state.sheets['TariffInputs'] || [];
+      const fallback = inputs.find(row => row['ComponentClass'] === componentClass && row['OriginCountry'] === originCountry);
+      if (fallback) {
+        const preferred = fallback['DefaultRate_pct'] != null && fallback['DefaultRate_pct'] !== ''
+          ? fallback['DefaultRate_pct']
+          : 0;
+        return toNumber(preferred);
+      }
+      return 0;
     }
 
     function populateLegend() {
@@ -621,7 +645,7 @@
         if (state.skuFilter && state.skuFilter !== product['SKU']) return;
         const sku = product['SKU'];
         const options = assemblyOptions.get(sku) || [];
-        let assemblyOption = options.find(opt => opt['AssemblySiteID'] === assemblySiteId) || options[0];
+        const assemblyOption = options.find(opt => opt['AssemblySiteID'] === assemblySiteId);
         if (!assemblyOption) return;
         const assemblySite = siteMap.get(assemblyOption['AssemblySiteID']) || { Country: 'Unknown', SiteID: assemblyOption['AssemblySiteID'] };
         const componentRows = bomBySKU.get(sku) || [];
@@ -684,11 +708,15 @@
       return results;
     }
 
-    function summarizeByAssembly() {
+    function summarizeByAssembly(cache = null) {
       const sites = ['BU_CH_MUR', 'PLANT_US_MI', 'PLANT_MX_NL'];
       const summary = [];
       sites.forEach(site => {
-        const data = computeCosts(site);
+        let data = cache && cache.has(site) ? cache.get(site) : null;
+        if (!data) {
+          data = computeCosts(site);
+          if (cache) cache.set(site, data);
+        }
         if (!data.length) return;
         const totals = data.reduce((acc, row) => {
           acc.material += row.MaterialCost_CHF;
@@ -706,6 +734,20 @@
         });
       });
       return summary;
+    }
+
+    function buildWhatIfDataset(cache = null) {
+      const sites = ['BU_CH_MUR', 'PLANT_US_MI', 'PLANT_MX_NL'];
+      const combined = [];
+      sites.forEach(site => {
+        let data = cache && cache.has(site) ? cache.get(site) : null;
+        if (!data) {
+          data = computeCosts(site);
+          if (cache) cache.set(site, data);
+        }
+        data.forEach(row => combined.push({ ...row }));
+      });
+      return combined;
     }
 
     function renderKPIs(data) {
@@ -876,7 +918,7 @@
           color: data.map(row => colorBySite[row.AssemblySiteID] || '#999'),
           line: { color: '#fff', width: 1 }
         },
-        text: data.map(row => `${row.SKU}<br>Margin: ${row.MarginPct.toFixed(2)}%<br>Lead: ${row.LeadTime_days.toFixed(1)} days`)
+        text: data.map(row => `${row.SKU} (${row.AssemblySiteID})<br>Margin: ${row.MarginPct.toFixed(2)}%<br>Lead: ${row.LeadTime_days.toFixed(1)} days`)
       };
       Plotly.newPlot('whatif-chart', [trace], {
         xaxis: { title: 'Margin %' },
@@ -885,12 +927,12 @@
       }, { responsive: true, displaylogo: false });
     }
 
-    function updateInsights(data) {
+    function updateInsights(data, summaryOverride = null, cache = null) {
       if (!data.length) {
         insightsText.textContent = 'Upload the workbook to unlock insights.';
         return;
       }
-      const siteSummary = summarizeByAssembly();
+      const siteSummary = summaryOverride || summarizeByAssembly(cache);
       const selectedSite = state.assemblySite;
       const selectedAvg = data.reduce((acc, row) => acc + row.MarginPct, 0) / data.length;
       const comparator = siteSummary.find(item => item.site !== selectedSite);
@@ -898,7 +940,11 @@
       const alt = siteSummary.filter(item => item.site !== selectedSite);
       if (alt.length) {
         const deltas = alt.map(item => {
-          const altData = computeCosts(item.site);
+          let altData = cache && cache.has(item.site) ? cache.get(item.site) : null;
+          if (!altData) {
+            altData = computeCosts(item.site);
+            if (cache) cache.set(item.site, altData);
+          }
           const altAvg = altData.length ? altData.reduce((sum, row) => sum + row.MarginPct, 0) / altData.length : 0;
           return { site: item.site, delta: altAvg - selectedAvg };
         }).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
@@ -920,13 +966,16 @@
         state.assemblySite = selectedAssemblyRadio.value;
       }
       state.includeFixed = includeFixedCheckbox.checked;
+      const cache = new Map();
       const data = computeCosts();
+      cache.set(state.assemblySite, data);
+      const summary = summarizeByAssembly(cache);
       renderKPIs(data);
-      renderStackedBar(summarizeByAssembly());
+      renderStackedBar(summary);
       renderTable(data);
       renderMap(data);
-      renderWhatIfChart(data);
-      updateInsights(data);
+      renderWhatIfChart(buildWhatIfDataset(cache));
+      updateInsights(data, summary, cache);
     }
 
     // Event listeners
@@ -962,8 +1011,7 @@
       updateState();
     });
     resetButton.addEventListener('click', () => {
-      state.tariffOverrides.clear();
-      populateTariffOverrides();
+      populateTariffOverrides(true);
       updateState();
     });
 
